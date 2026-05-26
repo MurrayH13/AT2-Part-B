@@ -63,7 +63,10 @@ def main(args):
 
     #Training loops for epoch and batches
     for epoch in range(args.epochs):  # loop over the dataset multiple times
-
+        #Set epoch for sampler
+        if distributed:
+            trainsampler.set_epoch(epoch)
+            
         running_loss = 0.0
 
     #    loop = tqdm(trainloader)
@@ -72,6 +75,8 @@ def main(args):
         for i, data in enumerate(trainloader, 0):
             # get the inputs; data is a list of [inputs, labels]
             inputs, labels = data
+            inputs = inputs.to(device)
+            labels = labels.to(device)
         
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -98,6 +103,8 @@ def main(args):
         with torch.no_grad():
             for data in testloader:
                 images, labels = data
+                images = images.to(device)
+                labels = labels.to(device)
                 # calculate outputs by running images through the network
                 outputs = net(images)
                 # the class with the highest energy is what we choose as prediction
@@ -110,24 +117,20 @@ def main(args):
 
         #Checkpointing
         # Save latest (epoch) model checkpoint
-        torch.save(
-            net.state_dict(),
-            f"checkpoints/last_model_epoch_{epoch+1}.pth"
-        )
-
-        print(f"Last model for epoch {epoch+1} saved.")
-
-        # Save best model checkpoint
-        if accuracy > best_acc:
-
-            best_acc = accuracy
-
+        # Save checkpoints only on rank 0, otherwise both GPUs try writing simultaneously.
+        if local_rank == 0:
             torch.save(
                 net.state_dict(),
-                "checkpoints/best_model.pth"
+                f"checkpoints/last_model_epoch_{epoch+1}.pth"
             )
-
-            print("Best model updated and saved.")
+            print(f"Last model for epoch {epoch+1} saved.")
+            if accuracy > best_acc:
+                best_acc = accuracy
+                torch.save(
+                net.state_dict(),
+                    "checkpoints/best_model.pth"
+                )
+                print("Best model updated and saved.")
 
         #Experiment tracking
         logs.append({ 
@@ -142,6 +145,8 @@ def main(args):
             json.dump(logs, f, indent=4) 
 
     print('Finished Training')
+    if distributed:
+    dist.destroy_process_group()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PyTorch Training Script")
