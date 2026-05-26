@@ -1,4 +1,4 @@
-# Train the network with loging and saving
+# Train the network with loging and saving and distributed training
 #from tqdm import tqdm
 import setup
 from setup import getdataloaders, Net
@@ -9,21 +9,51 @@ import argparse
 #import nn
 from setup import loss_function
 import torch.optim as optim
+import os
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data.distributed import DistributedSampler
 
 
 
 def main(args):
+    
+    # Distributed setup
+    distributed = "LOCAL_RANK" in os.environ
+    if distributed:
+        dist.init_process_group(backend="nccl")
+        local_rank = int(os.environ["LOCAL_RANK"])
+        torch.cuda.set_device(local_rank)
+        device = torch.device(f"cuda:{local_rank}")
+        print(f"Running DDP on GPU {local_rank}")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        local_rank = 0
+        print(f"Running single device: {device}")
+        
+    # Print out training arg values        
     print(f"Training for {args.epochs} epochs")
-    print(f"Batch size: {args.batch_size}") # not yet being used
-    print(f"Learning rate: {args.lr}")    #not yet being used
+    print(f"Batch size: {args.batch_size}") 
+    print(f"Learning rate: {args.lr}")    
     print(f"Dataset path: {args.data_dir}") #not yet being used
 
-    trainloader = getdataloaders(args.batch_size)
+    # Update dataloaders for DistributedSampler
+    trainloader, trainsampler = getdataloaders(
+        args.batch_size,
+        distributed
+    )
     testloader = gettestloaders(args.batch_size)
 
-    net = Net()
+    #Move model to GPU
+    net = Net().to(device)
+    
+    # Wrap model with DDP
+    if distributed:
+        net = DDP(net, device_ids=[local_rank])
+        
     total_params = sum(p.numel() for p in net.parameters())
     print("Total Parameters:", total_params)
+
     
     #define optimiser
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9)
