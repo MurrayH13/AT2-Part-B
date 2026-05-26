@@ -5,7 +5,8 @@ from torchvision.transforms import v2
 # Load and normalise CIAR10
 # For reproducibility set a random seed and set deterministic flags
 import random 
-import numpy as np 
+import numpy as np
+from torch.utils.data.distributed import DistributedSampler
  
 
 seed = 42 
@@ -26,14 +27,25 @@ transform = v2.Compose([
 
 
 
-def getdataloaders(batch_size):
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True,                                            
-                                            download=True, transform=transform)
-    
-    
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
-                                            shuffle=True, num_workers=2)           
-    return trainloader
+def getdataloaders(batch_size, distributed=False):
+    trainset = torchvision.datasets.CIFAR10(
+        root='./data',
+        train=True,
+        download=True,
+        transform=transform
+    )
+    sampler = None
+    if distributed:
+        sampler = DistributedSampler(trainset)
+    trainloader = torch.utils.data.DataLoader(
+        trainset,
+        batch_size=batch_size,
+        shuffle=(sampler is None),
+        sampler=sampler,
+        num_workers=2
+    )
+
+    return trainloader, sampler
 
 def gettestloaders(batch_size):
     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
