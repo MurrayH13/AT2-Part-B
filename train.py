@@ -146,7 +146,7 @@ def main(args):
 
     print('Finished Training')
     if distributed:
-    dist.destroy_process_group()
+        dist.destroy_process_group()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PyTorch Training Script")
