@@ -14,8 +14,8 @@ if [ "$GPU_COUNT" -ge 2 ]; then
         --standalone \
         --nproc_per_node=$GPU_COUNT \
         train.py \
-        --epochs 5 \
-        --batch-size 64 \
+        --epochs 2 \
+        --batch-size 4 \
         --lr 0.001
 
 else
@@ -23,8 +23,8 @@ else
     echo "Launching single GPU training..."
 
     python train.py \
-        --epochs 5 \
-        --batch-size 64 \
+        --epochs 2 \
+        --batch-size 4 \
         --lr 0.001
 
 fi
