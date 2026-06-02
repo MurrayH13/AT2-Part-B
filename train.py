@@ -13,6 +13,10 @@ import os
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
+# Datalogging and checkpointing
+from pathlib import Path
+from datetime import datetime
+import logging
 
 
 
@@ -58,8 +62,37 @@ def main(args):
     #define optimiser
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9)
 
+    # Create unique experiment timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Create experiment directories
+    run_dir = Path(f"runs/run_{timestamp}")
+    checkpoint_dir = run_dir / "checkpoints"
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)  
+
+    # Configure logging
+    logging.basicConfig(
+        filename=run_dir / "training.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+    logging.info("Training started")     
+
     best_acc = 0 #initialise best accuarcy
     logs = [] #initalise logs list
+
+    config = {
+        "epochs": 2,
+        "optimizer": optimizer.__class__.__name__,
+        "loss_function": criterion.__class__.__name__,
+        "timestamp": timestamp
+    }
+
+    with open(run_dir / "config.json", "w") as f:
+        json.dump(config, f, indent=4)
 
     #Training loops for epoch and batches
     for epoch in range(args.epochs):  # loop over the dataset multiple times
@@ -68,6 +101,8 @@ def main(args):
             trainsampler.set_epoch(epoch)
             
         running_loss = 0.0
+        epoch_loss = 0.0
+        batch_count = 0       
 
     #    loop = tqdm(trainloader)
 
@@ -89,8 +124,9 @@ def main(args):
 
             # print statistics
             running_loss += loss.item()
-#           loop.set_description(f"Epoch {epoch+1}")
-#           loop.set_postfix(loss=loss.item())
+            epoch_loss += loss.item()
+            batch_count += 1                
+
         
             if i % 2000 == 1999:    # print every 2000 mini-batches
                 print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
@@ -113,38 +149,64 @@ def main(args):
                 correct += (predicted == labels).sum().item()
         
         accuracy = 100 * correct / total
+        avg_loss = epoch_loss / batch_count
+
         print(f'Accuracy of the network on the 10000 test images: {accuracy} % Total = {total}')
+        logging.info(
+            f"Epoch={epoch+1} "
+            f"Loss={avg_loss:.4f} "
+            f"Accuracy={accuracy:.2f}%"
+        )        
 
         #Checkpointing
         # Save latest (epoch) model checkpoint
         # Save checkpoints only on rank 0, otherwise both GPUs try writing simultaneously.
         if local_rank == 0:
+            
             torch.save(
                 net.state_dict(),
-                f"checkpoints/last_model_epoch_{epoch+1}.pth"
+                checkpoint_dir / f"last_model_epoch_{epoch+1}.pth"
             )
+
             print(f"Last model for epoch {epoch+1} saved.")
+            logging.info(
+                f"Epoch {epoch+1}: latest checkpoint saved"
+            )
+ 
             if accuracy > best_acc:
                 best_acc = accuracy
+                
                 torch.save(
-                net.state_dict(),
-                    "checkpoints/best_model.pth"
+                    net.state_dict(),
+                    checkpoint_dir / f"best_model_{timestamp}.pth"
                 )
+                
                 print("Best model updated and saved.")
+                logging.info(
+                    f"Epoch {epoch+1}: new best model saved (accuracy={accuracy:.2f})"
+                )
 
         #Experiment tracking
-        logs.append({ 
-        "epoch": epoch, 
-        "loss": running_loss, 
-        "accuracy": accuracy 
-        }) 
-
+        
+        logs.append({
+            "epoch": epoch + 1,
+            "loss": round(avg_loss, 4),
+            "accuracy": round(accuracy, 2),
+            "best_accuracy": round(best_acc, 2)
+        })
+        
         # Save Experiment tracking to file
 
-        with open("metrics.json", "w") as f: 
+        with open(run_dir / "metrics.json", "w") as f: 
             json.dump(logs, f, indent=4) 
 
     print('Finished Training')
+    logging.info("Training completed")
+    logging.info(f"Best accuracy: {best_acc:.2f}%")
+
+    print(f"\nExperiment saved to: {run_dir}")
+    print(f"Best accuracy achieved: {best_acc:.2f}%")
+
     if distributed:
         dist.destroy_process_group()
 
