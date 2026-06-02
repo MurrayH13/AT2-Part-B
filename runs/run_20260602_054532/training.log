@@ -1,0 +1,9 @@
+2026-06-02 05:45:32,629 - INFO - Training started
+2026-06-02 05:46:25,776 - INFO - Epoch=1 Loss=1.6761 Accuracy=48.07%
+2026-06-02 05:46:25,796 - INFO - Epoch 1: latest checkpoint saved
+2026-06-02 05:46:25,798 - INFO - Epoch 1: new best model saved (accuracy=48.07)
+2026-06-02 05:47:17,681 - INFO - Epoch=2 Loss=1.3102 Accuracy=56.26%
+2026-06-02 05:47:17,683 - INFO - Epoch 2: latest checkpoint saved
+2026-06-02 05:47:17,686 - INFO - Epoch 2: new best model saved (accuracy=56.26)
+2026-06-02 05:47:17,686 - INFO - Training completed
+2026-06-02 05:47:17,686 - INFO - Best accuracy: 56.26%

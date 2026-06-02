@@ -1,0 +1,6 @@
+{
+    "epochs": 2,
+    "optimizer": "SGD",
+    "loss_function": "CrossEntropyLoss",
+    "timestamp": "20260602_060829"
+}
