@@ -87,7 +87,7 @@ def main(args):
     config = {
         "epochs": 2,
         "optimizer": optimizer.__class__.__name__,
-        "loss_function": criterion.__class__.__name__,
+        "loss_function": "CrossEntropyLoss",
         "timestamp": timestamp
     }
 
